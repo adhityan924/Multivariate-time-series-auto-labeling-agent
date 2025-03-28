@@ -1,0 +1,10 @@
+langchain
+langchain-openai
+langchain-community
+openai
+pandas
+numpy
+chromadb
+sentence-transformers
+python-dotenv
+colorama
