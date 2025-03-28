@@ -52,9 +52,9 @@ Annotation label: peak-pattern
 Similar patterns found:
 {
   "peak-pattern": [
-    [5.0, 5.2, 5.3, 5.1],
-    [4.9, 5.1, 5.4, 5.2],
-    [5.1, 5.3, 5.2, 5.1]
+    [5.0, 5.2],
+    [4.9, 5.1], 
+    [5.1, 5.3]
   ]
 }
 
@@ -69,7 +69,7 @@ You can modify these parameters in `agents/main_agent.py`:
 
 ## Data Format
 
-The CSV file should contain columns of numerical time series data. Each column will be processed independently.
+The CSV file should contain columns of numerical time series data. Each column will be processed independently. Query results return pairs of [first_value, last_value] for matching time series chunks.
 
 Example CSV structure:
 ```
