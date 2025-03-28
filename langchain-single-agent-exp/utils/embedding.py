@@ -1,7 +1,7 @@
 import os
 from typing import List, Callable
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings.huggingface import HuggingFaceEmbeddings
 
 class ChromaEmbeddingFunction:
     def __init__(self, embedder):

@@ -8,3 +8,7 @@ chromadb
 sentence-transformers
 python-dotenv
 colorama
+fastapi
+uvicorn[standard]
+python-multipart
+jinja2

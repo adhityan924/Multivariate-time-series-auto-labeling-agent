@@ -44,8 +44,7 @@ class VectorDatabaseManager:
         # Get or create the collection
         try:
             self.collection = self.client.get_collection(
-                name=collection_name,
-                embedding_function=embedding_function
+                name=collection_name
             )
             print_info(f"Using existing collection: {collection_name}")
         except InvalidCollectionException:
@@ -53,7 +52,7 @@ class VectorDatabaseManager:
                 name=collection_name,
                 embedding_function=embedding_function
             )
-        print_success(f"Created new collection: {collection_name}")
+            print_success(f"Created new collection: {collection_name}")
 
 
     def add_documents(

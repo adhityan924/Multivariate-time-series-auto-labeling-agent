@@ -6,9 +6,6 @@ import json
 import ast
 from typing import List, Dict, Any, Optional
 
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain.tools import tool
-from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 from langchain.tools import Tool
@@ -53,7 +50,6 @@ class TimeSeriesAgent:
         # Initialize components
         self.db_manager = None
         self.embedder = None
-        self.agent_executor = None
         
         # Initialize the agent components
         self._initialize_agent()
@@ -67,70 +63,7 @@ class TimeSeriesAgent:
         
         # Initialize vector database manager
         self.db_manager = VectorDatabaseManager(embedding_function=self.embedder)
-        
-        # Define tools for the agent
-        tools = [
-            Tool(
-        name="load_data",
-        func=lambda tool_input: self.load_data(),  # ignoring tool_input if not needed
-        description="Load time series data from the CSV file."
-    ),
-    Tool(
-        name="process_data",
-        func=lambda tool_input: self.process_data(),
-        description="Process the time series data by chunking and embedding."
-    ),
-    Tool(
-        name="get_user_input",
-        func=lambda tool_input: self.get_user_input(),
-        description="Prompt the user for time series array and annotation label."
-    ),
-    Tool(
-        name="query_database",
-        func=lambda tool_input: self.query_database(json.loads(tool_input)),  # assuming tool_input is JSON
-        description="Query the vector database for similar time series chunks."
-    ),
-    Tool(
-        name="format_results",
-        func=lambda tool_input: self.format_results(json.loads(tool_input), "default_annotation"),
-        description="Format the query results with an annotation label."
-    ),
-        ]
-        
-        # Define the prompt template (removed unused format_instructions)
-        prompt = PromptTemplate.from_template(
-    """
-    You are a Time Series Similarity and Annotation Agent. Your task is to process time series data,
-    find similar patterns, and annotate them based on user queries.
-    
-    Follow these steps:
-    1. Load the time series data from the specified path.
-    2. Process the data by chunking each column and embedding the chunks.
-    3. Get input from the user (time series array and annotation label).
-    4. Query the database to find similar time series chunks.
-    5. Format and return the results.
-    
-    Use the tools available to you to accomplish these tasks.
-    
-    {{format_instructions}}
-    
-    Human: {input}
-    Agent: {agent_scratchpad}
-    """
-)
-        
-        # Create the OpenAI tools agent
-        model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-        agent = create_openai_tools_agent(model, tools, prompt)
-        
-        # Create the agent executor
-        self.agent_executor = AgentExecutor.from_agent_and_tools(
-            agent=agent,
-            tools=tools,
-            verbose=True,
-        )
 
-    
     def load_data(self) -> str:
         """
         Load time series data from the specified path.
@@ -156,7 +89,6 @@ class TimeSeriesAgent:
                 "message": f"Error loading data: {str(e)}"
             })
 
-    
     def process_data(self) -> str:
         """
         Process time series data by chunking each column and embedding the chunks.
@@ -213,7 +145,26 @@ class TimeSeriesAgent:
                 "message": f"Error processing data: {str(e)}"
             })
 
-    
+    def query_database(self, query_data: Dict[str, Any]) -> List[List[float]]:
+        """
+        Query the database for similar time series chunks.
+        
+        Args:
+            query_data: Dictionary containing time series array and annotation label.
+            
+        Returns:
+            List of similar time series chunks.
+        """
+        time_series_array = query_data.get("time_series_array", [])
+        
+        # Convert the query array to string format
+        query_str = json.dumps(time_series_array)
+        
+        # Query the database
+        results = self.db_manager.query(query_str, n_results=self.top_k)
+        
+        return results
+
     def get_user_input(self) -> str:
         """
         Get input from the user (time series array and annotation label).
@@ -254,49 +205,6 @@ class TimeSeriesAgent:
                 "message": f"Error getting user input: {str(e)}"
             })
 
-    
-    def query_database(self, time_series_array: List[float]) -> str:
-        print_step("Querying database for similar time series chunks")
-        
-        try:
-            # Convert the time series array to a JSON string to match the stored document format.
-            query_text = json.dumps(time_series_array)
-            print_info("Querying database with the converted time series array...")
-            
-            # Query the vector database using the JSON string.
-            results = self.db_manager.query(query_text, self.top_k)
-            
-            # If no results were found, create mock data for demonstration.
-            if not results or len(results) == 0:
-                print_warning("No similar chunks found in database. Creating sample results for demonstration.")
-                import random
-                import numpy as np
-                
-                mock_results = []
-                for i in range(self.top_k):
-                    variation = np.array(time_series_array) * (
-                        1 + np.array([random.uniform(-0.05, 0.05) for _ in range(len(time_series_array))])
-                    )
-                    mock_results.append([round(v, 2) for v in variation])
-                results = mock_results
-            
-            print_info("Performing similarity search...")
-            print_success(f"Query successful. Found {len(results)} matching chunks.")
-            
-            return json.dumps({
-                "status": "success",
-                "results": results
-            })
-            
-        except Exception as e:
-            print_error(f"Error querying database: {str(e)}")
-            return json.dumps({
-                "status": "error",
-                "message": f"Error querying database: {str(e)}"
-            })
-
-
-    
     def format_results(self, results: List[List[float]], annotation_label: str) -> str:
         """
         Format and return the query results.
@@ -347,7 +255,7 @@ class TimeSeriesAgent:
                 return
             
             # Query the database using the user's time series array
-            query_result = json.loads(self.query_database(user_input_result["time_series_array"]))
+            query_result = json.loads(self.query_database(user_input_result))
             if query_result["status"] != "success":
                 print_error("Failed to query the database.")
                 return
