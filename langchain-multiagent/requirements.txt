@@ -1,0 +1,9 @@
+langchain
+langchain-openai
+langchain-community
+chromadb
+pandas
+numpy
+scipy
+colorama
+python-dotenv
