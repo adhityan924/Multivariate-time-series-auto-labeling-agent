@@ -200,15 +200,13 @@
             const annotation = document.getElementById('annotation').value;
 
             try {
+                const formData = new FormData();
+                formData.append('pattern', timeSeries);
+                formData.append('label', annotation);
+
                 const response = await fetch('/analyze', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        time_series_array: JSON.parse(timeSeries),
-                        annotation_label: annotation
-                    })
+                    body: formData
                 });
                 const result = await response.json();
                 
@@ -216,21 +214,29 @@
                     const tbody = document.getElementById('resultsBody');
                     tbody.innerHTML = '';
                     
-                    result.results.forEach(item => {
+                    if (result.results && result.results.length > 0) {
+                        result.results.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${JSON.stringify(item.time_series)}</td>
+                                <td>${item.annotation}</td>
+                                <td>${item.similarity_score.toFixed(2)}</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    } else {
                         const row = document.createElement('tr');
                         row.innerHTML = `
-                            <td>${JSON.stringify(item.time_series)}</td>
-                            <td>${item.annotation}</td>
-                            <td>${item.similarity_score}</td>
+                            <td colspan="3" class="text-center">No similar patterns found</td>
                         `;
                         tbody.appendChild(row);
-                    });
+                    }
                 } else {
-                    alert(result.message);
+                    alert(result.message || 'Error analyzing time series');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error analyzing time series');
+                alert('Error analyzing time series. Please check your input format.');
             }
         });
     </script>

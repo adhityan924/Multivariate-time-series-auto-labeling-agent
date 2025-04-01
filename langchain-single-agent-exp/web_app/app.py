@@ -28,6 +28,13 @@ agent = TimeSeriesAgent(
     embedding_model="sentence-transformers"
 )
 
+# Process the default dataset on startup
+try:
+    agent.process_data()
+    print("Default dataset processed successfully")
+except Exception as e:
+    print(f"Error processing default dataset: {str(e)}")
+
 @app.get("/")
 async def home(request: Request):
     """Render the home page."""

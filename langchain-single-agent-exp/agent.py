@@ -145,7 +145,7 @@ class TimeSeriesAgent:
                 "message": f"Error processing data: {str(e)}"
             })
 
-    def query_database(self, query_data: Dict[str, Any]) -> List[List[float]]:
+    def query_database(self, query_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Query the database for similar time series chunks.
         
@@ -153,9 +153,10 @@ class TimeSeriesAgent:
             query_data: Dictionary containing time series array and annotation label.
             
         Returns:
-            List of similar time series chunks.
+            List of dictionaries containing similar time series chunks with their metadata.
         """
         time_series_array = query_data.get("time_series_array", [])
+        annotation_label = query_data.get("annotation_label", "")
         
         # Convert the query array to string format
         query_str = json.dumps(time_series_array)
@@ -163,7 +164,16 @@ class TimeSeriesAgent:
         # Query the database
         results = self.db_manager.query(query_str, n_results=self.top_k)
         
-        return results
+        # Format results
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "time_series": result,
+                "annotation": annotation_label,
+                "similarity_score": 0.95  # Placeholder similarity score
+            })
+        
+        return formatted_results
 
     def get_user_input(self) -> str:
         """
