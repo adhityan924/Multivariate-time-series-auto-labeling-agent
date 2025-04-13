@@ -1,0 +1,14 @@
+langchain
+# langchain-google-genai # No longer needed
+langchain-community
+langchain-openai # Added
+openai # Added
+pandas
+numpy
+pypdf
+chromadb
+# google-generativeai # No longer needed
+tiktoken
+python-dotenv
+tslearn
+scipy
