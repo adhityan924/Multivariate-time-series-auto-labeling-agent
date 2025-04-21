@@ -1,0 +1,13 @@
+langchain
+langchain-community
+langchain-openai
+openai
+pandas
+numpy
+pypdf
+chromadb
+tiktoken
+python-dotenv
+tslearn
+scipy
+json5 

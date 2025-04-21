@@ -78,11 +78,16 @@ def load_and_split_pdf(file_path: str):
 # Global variable for the retriever
 knowledge_retriever = None
 
-def setup_vector_store():
+def setup_vector_store(knowledge_pdf_path=None, db_persist_path=None, collection_name=None):
     """
     Sets up the ChromaDB vector store and retriever for the knowledge base.
     Instantiates the LangChain Chroma wrapper and checks if the collection
     needs to be populated (loads, splits, embeds PDF only if empty).
+    
+    Args:
+        knowledge_pdf_path: Optional custom path to the PDF file. If None, uses default KNOWLEDGE_BASE_PATH.
+        db_persist_path: Optional custom path to store the vector database. If None, uses default PERSIST_DIRECTORY.
+        collection_name: Optional custom collection name. If None, uses default COLLECTION_NAME.
     """
     global knowledge_retriever
     if knowledge_retriever:
@@ -92,6 +97,9 @@ def setup_vector_store():
     if not API_KEY:
         print("Error: Cannot setup vector store without OPENAI_API_KEY.")
         return None
+    
+    # Use provided paths or fall back to defaults
+    actual_collection_name = collection_name or COLLECTION_NAME
 
     try:
         # 1. Initialize Embeddings Model
@@ -99,18 +107,23 @@ def setup_vector_store():
         print("OpenAIEmbeddings initialized.")
 
         # 2. Initialize ChromaDB Client and LangChain Wrapper
-        persist_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', PERSIST_DIRECTORY))
+        # Use the provided db path or compute the default one
+        if db_persist_path:
+            persist_path = db_persist_path
+        else:
+            persist_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', PERSIST_DIRECTORY))
+        
         os.makedirs(persist_path, exist_ok=True)
         client = chromadb.PersistentClient(path=persist_path) # Keep client for potential direct operations if needed
 
         # Instantiate the LangChain Chroma wrapper immediately
         vector_store = Chroma(
             client=client, # Pass the client instance
-            collection_name=COLLECTION_NAME,
+            collection_name=actual_collection_name,
             embedding_function=embeddings,
             persist_directory=persist_path # Important for loading existing data
         )
-        print(f"Chroma vector store wrapper initialized for collection '{COLLECTION_NAME}'.")
+        print(f"Chroma vector store wrapper initialized for collection '{actual_collection_name}'.")
 
         # 3. Check if collection needs population
         # Access the underlying collection count via the wrapper
@@ -118,19 +131,24 @@ def setup_vector_store():
         # A direct count check might be needed if get_collection is preferred first.
         # Let's try a direct count first for clarity.
         try:
-             collection = client.get_collection(name=COLLECTION_NAME)
+             collection = client.get_collection(name=actual_collection_name)
              doc_count = collection.count()
-             print(f"Existing collection '{COLLECTION_NAME}' found with {doc_count} documents.")
+             print(f"Existing collection '{actual_collection_name}' found with {doc_count} documents.")
         except Exception: # Broad exception, ideally catch specific ChromaDB error
-             print(f"Collection '{COLLECTION_NAME}' likely doesn't exist yet.")
+             print(f"Collection '{actual_collection_name}' likely doesn't exist yet.")
              doc_count = 0
              # Ensure collection is created if get failed (get_or_create might be cleaner overall)
-             # collection = client.get_or_create_collection(name=COLLECTION_NAME)
+             # collection = client.get_or_create_collection(name=actual_collection_name)
 
         if doc_count == 0:
-            print(f"Collection '{COLLECTION_NAME}' is empty. Populating...")
+            print(f"Collection '{actual_collection_name}' is empty. Populating...")
             # 4. Load, Split, Embed, and Add PDF
-            pdf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', KNOWLEDGE_BASE_PATH))
+            # Use the provided PDF path or compute the default one
+            if knowledge_pdf_path:
+                pdf_path = knowledge_pdf_path
+            else:
+                pdf_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', KNOWLEDGE_BASE_PATH))
+            
             if not os.path.exists(pdf_path):
                 print(f"Error: Knowledge base PDF not found at {pdf_path}")
                 return None
@@ -144,7 +162,7 @@ def setup_vector_store():
             ids = [f"chunk_{i}" for i in range(len(chunks))]
             # Add documents using the vector_store wrapper
             vector_store.add_documents(documents=chunks, ids=ids)
-            print(f"Successfully added {len(chunks)} chunks to collection '{COLLECTION_NAME}'.")
+            print(f"Successfully added {len(chunks)} chunks to collection '{actual_collection_name}'.")
             # Persist changes explicitly if needed, though PersistentClient usually handles this
             # client.persist() # Or vector_store.persist() if available
         else:
@@ -164,13 +182,15 @@ def setup_vector_store():
 
 
 @tool
-def query_domain_knowledge(query_text: str) -> str:
+def query_domain_knowledge(query_text: str, knowledge_pdf_path=None, db_persist_path=None) -> str:
     """
     Queries the domain knowledge base (embedded PDF) for relevant information.
     Uses the retriever to find document chunks related to the query_text.
 
     Args:
         query_text: The question or topic to search for in the knowledge base.
+        knowledge_pdf_path: Optional custom path to the PDF file.
+        db_persist_path: Optional custom path to the vector database.
 
     Returns:
         A formatted string containing the relevant document excerpts,
@@ -180,7 +200,7 @@ def query_domain_knowledge(query_text: str) -> str:
     # Ensure retriever is initialized
     if not knowledge_retriever:
         print("Retriever not initialized. Attempting setup...")
-        setup_vector_store()
+        setup_vector_store(knowledge_pdf_path=knowledge_pdf_path, db_persist_path=db_persist_path)
         if not knowledge_retriever:
             return "Error: Knowledge base retriever could not be initialized."
 
