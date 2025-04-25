@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block title %}Results Comparison - Time Series Analyzer Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        height: 600px;
+        width: 100%;
+        margin-bottom: 1.5rem;
+    }
+    
+    .distribution-container {
+        height: 400px;
+        width: 100%;
+        margin-bottom: 1.5rem;
+    }
+    
+    .comparison-card {
+        border-top: 4px solid var(--primary-color);
+    }
+    
+    .comparison-table th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+    
+    .dark-mode .comparison-table th {
+        background-color: #333;
+    }
+    
+    .comparison-header {
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .metric-card {
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    
+    .metric-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .dark-mode .metric-label {
+        color: #adb5bd;
+    }
+    
+    .experiment-badge {
+        width: 20px;
+        height: 20px;
+        display: inline-block;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .nav-pills .nav-link.active {
+        background-color: var(--primary-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Comparison Header -->
+    <div class="comparison-header d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <h1 class="h3 mb-0">Results Comparison</h1>
+            <p class="text-muted">Comparing {{ results|length }} experiment runs</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-house"></i> Dashboard
+            </a>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-download"></i> Export
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" id="exportComparisonJson"><i class="bi bi-filetype-json me-2"></i>JSON</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportComparisonCsv"><i class="bi bi-filetype-csv me-2"></i>CSV</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportComparisonPdf"><i class="bi bi-filetype-pdf me-2"></i>PDF Report</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportComparisonCharts"><i class="bi bi-image me-2"></i>Charts</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Tabs -->
+    <ul class="nav nav-pills mb-4" id="comparisonTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                <i class="bi bi-grid"></i> Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="visualizations-tab" data-bs-toggle="tab" data-bs-target="#visualizations" type="button" role="tab">
+                <i class="bi bi-graph-up"></i> Visualizations
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">
+                <i class="bi bi-list-ul"></i> Detailed Comparison
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content">
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+            <!-- Key Metrics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                    <div class="card comparison-card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Total Segments Found</h6>
+                            <div class="d-flex align-items-center mt-3">
+                                <div class="display-4 me-3">{{ results|sum(attribute='segments|length') }}</div>
+                                <div class="text-muted">
+                                    Across {{ results|length }} experiments
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Average per experiment:</span>
+                                    <span>{{ (results|sum(attribute='segments|length') / results|length)|round(1) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card comparison-card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Segment Distribution</h6>
+                            <div class="mt-3">
+                                <div id="segment-distribution-mini" style="height: 150px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card comparison-card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Segment Size Comparison</h6>
+                            <div class="mt-3">
+                                <div id="segment-size-mini" style="height: 150px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="card comparison-card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Experiments</h6>
+                            <div class="mt-3">
+                                <ul class="list-group list-group-flush">
+                                    {% for i, result in enumerate(results) %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <div>
+                                            <span class="experiment-badge" style="background-color: {{ ['#3A86FF', '#FF006E', '#8338EC', '#FB5607', '#FFBE0B'][i % 5] }};"></span>
+                                            Exp {{ run_ids[i]|truncate(12, true) }}
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">{{ result.get('segments', [])|length }} segments</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main Comparison Chart -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Experiment Comparison</h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" id="resetZoom">
+                            <i class="bi bi-arrows-fullscreen"></i> Reset Zoom
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="overlap-chart" class="chart-container"></div>
+                </div>
+            </div>
+            
+            <!-- Parameter Comparison -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Parameter Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    {% for i, result in enumerate(results) %}
+                                    <th>
+                                        <span class="experiment-badge" style="background-color: {{ ['#3A86FF', '#FF006E', '#8338EC', '#FB5607', '#FFBE0B'][i % 5] }};"></span>
+                                        Exp {{ i+1 }}
+                                    </th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Start Row</td>
+                                    {% for result in results %}
+                                    <td>{{ result.get('parameters', {}).get('input_start_row', 'N/A') }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>End Row</td>
+                                    {% for result in results %}
+                                    <td>{{ result.get('parameters', {}).get('input_end_row', 'N/A') }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Column</td>
+                                    {% for result in results %}
+                                    <td>{{ result.get('parameters', {}).get('input_column_name', 'N/A') }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Label</td>
+                                    {% for result in results %}
+                                    <td>{{ result.get('parameters', {}).get('input_label', 'N/A') }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Query Size</td>
+                                    {% for result in results %}
+                                    {% set params = result.get('parameters', {}) %}
+                                    <td>
+                                        {% if 'input_start_row' in params and 'input_end_row' in params %}
+                                        {{ params.get('input_end_row') - params.get('input_start_row') + 1 }} rows
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td>Segments Found</td>
+                                    {% for result in results %}
+                                    <td>{{ result.get('segments', [])|length }}</td>
+                                    {% endfor %}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Visualizations Tab -->
+        <div class="tab-pane fade" id="visualizations" role="tabpanel" aria-labelledby="visualizations-tab">
+            <div class="row">
+                <!-- Segment Distribution -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="segment-distribution" class="distribution-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Segment Lengths -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Length Distribution</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="segment-lengths" class="distribution-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Segment Timeline -->
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Timeline</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4">This visualization shows where segments were found across the dataset for each experiment.</p>
+                            
+                            <div class="position-relative">
+                                <div class="mb-3">
+                                    {% for i, run_id in enumerate(run_ids) %}
+                                    <div class="mb-2 d-flex align-items-center">
+                                        <span class="experiment-badge" style="background-color: {{ ['#3A86FF', '#FF006E', '#8338EC', '#FB5607', '#FFBE0B'][i % 5] }};"></span>
+                                        <span class="me-3">Exp {{ run_id|truncate(12, true) }}</span>
+                                        
+                                        <div class="progress flex-grow-1" style="height: 24px;">
+                                            {% set result = results[i] %}
+                                            {% set segments = result.get('segments', []) %}
+                                            
+                                            {% if segments %}
+                                                {% for segment in segments %}
+                                                    {% set start_percent = (segment.get('start_row', 0) / 1000) * 100 %}
+                                                    {% set width_percent = ((segment.get('end_row', 0) - segment.get('start_row', 0) + 1) / 1000) * 100 %}
+                                                    <div class="progress-bar" role="progressbar" 
+                                                         style="width: {{ width_percent }}%; margin-left: {{ start_percent }}%; background-color: {{ ['#3A86FF', '#FF006E', '#8338EC', '#FB5607', '#FFBE0B'][i % 5] }};" 
+                                                         title="Rows {{ segment.get('start_row', 0) }} - {{ segment.get('end_row', 0) }}">
+                                                    </div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                
+                                <!-- Timeline scale -->
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>0</span>
+                                    <span>250</span>
+                                    <span>500</span>
+                                    <span>750</span>
+                                    <span>1000</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Details Tab -->
+        <div class="tab-pane fade" id="details" role="tabpanel" aria-labelledby="details-tab">
+            <div class="row">
+                <!-- Segment Comparison -->
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Details Comparison</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Experiment</th>
+                                            <th>Total Segments</th>
+                                            <th>Avg. Segment Length</th>
+                                            <th>Min Length</th>
+                                            <th>Max Length</th>
+                                            <th>Coverage</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for i, result in enumerate(results) %}
+                                        <tr>
+                                            <td>
+                                                <span class="experiment-badge" style="background-color: {{ ['#3A86FF', '#FF006E', '#8338EC', '#FB5607', '#FFBE0B'][i % 5] }};"></span>
+                                                {{ run_ids[i]|truncate(12, true) }}
+                                            </td>
+                                            
+                                            {% set segments = result.get('segments', []) %}
+                                            <td>{{ segments|length }}</td>
+                                            
+                                            {% if segments %}
+                                                {% set total_length = 0 %}
+                                                {% set min_length = 1000 %}
+                                                {% set max_length = 0 %}
+                                                {% set total_coverage = 0 %}
+                                                
+                                                {% for segment in segments %}
+                                                    {% set length = segment.get('end_row', 0) - segment.get('start_row', 0) + 1 %}
+                                                    {% set total_length = total_length + length %}
+                                                    {% set min_length = [min_length, length]|min %}
+                                                    {% set max_length = [max_length, length]|max %}
+                                                    {% set total_coverage = total_coverage + length %}
+                                                {% endfor %}
+                                                
+                                                <td>{{ (total_length / segments|length)|round|int }} rows</td>
+                                                <td>{{ min_length }} rows</td>
+                                                <td>{{ max_length }} rows</td>
+                                                <td>{{ ((total_coverage / 1000) * 100)|round|int }}%</td>
+                                            {% else %}
+                                                <td>N/A</td>
+                                                <td>N/A</td>
+                                                <td>N/A</td>
+                                                <td>0%</td>
+                                            {% endif %}
+                                            
+                                            <td>
+                                                <a href="{{ url_for('view_results', run_id=run_ids[i]) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i> View
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Explanations Comparison -->
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Explanations & Uncertainty</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="accordion" id="explanationAccordion">
+                                {% for i, result in enumerate(results) %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingExp{{ i }}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExp{{ i }}" aria-expanded="false">
+                                            <span class="experiment-badge" style="background-color: {{ ['#3A86FF', '#FF006E', '#8338EC', '#FB5607', '#FFBE0B'][i % 5] }};"></span>
+                                            Experiment {{ run_ids[i]|truncate(12, true) }}
+                                        </button>
+                                    </h2>
+                                    <div id="collapseExp{{ i }}" class="accordion-collapse collapse" aria-labelledby="headingExp{{ i }}" data-bs-parent="#explanationAccordion">
+                                        <div class="accordion-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <h6>Explanation</h6>
+                                                    <p>{{ result.get('explanation', 'No explanation available.') }}</p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6>Uncertainty Notes</h6>
+                                                    <p>{{ result.get('uncertainty', 'No uncertainty notes available.') }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Parse and render the overlap chart
+        {% if visualizations.overlap_chart %}
+            const overlapChartData = JSON.parse('{{ visualizations.overlap_chart|safe }}');
+            Plotly.newPlot('overlap-chart', overlapChartData.data, overlapChartData.layout);
+        {% else %}
+            document.getElementById('overlap-chart').innerHTML = '<div class="alert alert-warning">No overlap chart visualization available.</div>';
+        {% endif %}
+        
+        // Parse and render the segment distribution
+        {% if visualizations.segment_distribution %}
+            const segmentDistData = JSON.parse('{{ visualizations.segment_distribution|safe }}');
+            Plotly.newPlot('segment-distribution', segmentDistData.data, segmentDistData.layout);
+            
+            // Create a mini version for the overview tab
+            const miniDistLayout = Object.assign({}, segmentDistData.layout);
+            miniDistLayout.height = 150;
+            miniDistLayout.margin = { t: 10, r: 10, b: 40, l: 40 };
+            miniDistLayout.title = '';
+            miniDistLayout.showlegend = false;
+            Plotly.newPlot('segment-distribution-mini', segmentDistData.data, miniDistLayout);
+        {% else %}
+            document.getElementById('segment-distribution').innerHTML = '<div class="alert alert-warning">No segment distribution visualization available.</div>';
+            document.getElementById('segment-distribution-mini').innerHTML = '<div class="alert alert-warning small">No data</div>';
+        {% endif %}
+        
+        // Parse and render the segment lengths
+        {% if visualizations.segment_lengths %}
+            const segmentLengthsData = JSON.parse('{{ visualizations.segment_lengths|safe }}');
+            Plotly.newPlot('segment-lengths', segmentLengthsData.data, segmentLengthsData.layout);
+            
+            // Create a mini version for the overview tab
+            const miniLengthLayout = Object.assign({}, segmentLengthsData.layout);
+            miniLengthLayout.height = 150;
+            miniLengthLayout.margin = { t: 10, r: 10, b: 40, l: 40 };
+            miniLengthLayout.title = '';
+            miniLengthLayout.showlegend = false;
+            Plotly.newPlot('segment-size-mini', segmentLengthsData.data, miniLengthLayout);
+        {% else %}
+            document.getElementById('segment-lengths').innerHTML = '<div class="alert alert-warning">No segment length visualization available.</div>';
+            document.getElementById('segment-size-mini').innerHTML = '<div class="alert alert-warning small">No data</div>';
+        {% endif %}
+        
+        // Reset zoom button
+        document.getElementById('resetZoom').addEventListener('click', function() {
+            const overlapChart = document.getElementById('overlap-chart');
+            Plotly.relayout(overlapChart, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
+        });
+        
+        // Export functionality
+        document.getElementById('exportComparisonJson').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Exporting JSON...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        document.getElementById('exportComparisonCsv').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Exporting CSV...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        document.getElementById('exportComparisonPdf').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Generating PDF Report...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        document.getElementById('exportComparisonCharts').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Exporting Charts...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+    });
+</script>
+{% endblock %} 
