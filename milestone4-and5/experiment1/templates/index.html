@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Series Auto-Labeling Agent</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .header {
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e5e5e5;
+            margin-bottom: 2rem;
+        }
+        .form-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header text-center">
+            <h1>Time Series Auto-Labeling Agent UI</h1>
+            <p class="lead">Configure and run time series pattern identification experiments</p>
+        </div>
+        
+        <div class="form-container">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Experiment Configuration</h4>
+                </div>
+                <div class="card-body">
+                    <form action="/run_experiment" method="post">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="start_row" class="form-label">Start Row</label>
+                                <input type="number" class="form-control" id="start_row" name="start_row" value="100" required>
+                                <div class="form-text">Starting row index of the query segment</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="end_row" class="form-label">End Row</label>
+                                <input type="number" class="form-control" id="end_row" name="end_row" value="150" required>
+                                <div class="form-text">Ending row index of the query segment</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="column_name" class="form-label">Column Name</label>
+                            <select class="form-select" id="column_name" name="column_name" required>
+                                {% if columns %}
+                                    {% for column in columns %}
+                                        <option value="{{ column }}">{{ column }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No columns available</option>
+                                {% endif %}
+                            </select>
+                            <div class="form-text">Column to analyze for patterns</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="label" class="form-label">Label</label>
+                            <input type="text" class="form-control" id="label" name="label" value="Pattern_A" required>
+                            <div class="form-text">Label to assign to identified patterns</div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Run Experiment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">About This Tool</h4>
+                </div>
+                <div class="card-body">
+                    <p>This UI allows you to run time series pattern identification experiments using an AI agent.</p>
+                    <p>The agent will:</p>
+                    <ol>
+                        <li>Analyze the specified segment in your time series data</li>
+                        <li>Find similar patterns throughout the dataset</li>
+                        <li>Label the identified segments</li>
+                        <li>Provide visualizations and explanations</li>
+                    </ol>
+                    <p>The process uses a LangChain agent with OpenAI's API to perform semantic analysis of time series patterns.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

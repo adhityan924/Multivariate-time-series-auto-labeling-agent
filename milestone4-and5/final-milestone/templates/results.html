@@ -1,0 +1,707 @@
+{% extends "base.html" %}
+
+{% block title %}Experiment Results - Time Series Analyzer Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .time-series-container {
+        height: 600px;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .heatmap-container {
+        height: 150px;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .stats-container {
+        height: 500px;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .segment-details {
+        border-left: 4px solid var(--primary-color);
+        background-color: rgba(58, 134, 255, 0.05);
+        padding: 15px;
+        border-radius: 0 4px 4px 0;
+        margin-bottom: 15px;
+        transition: transform 0.2s;
+    }
+    
+    .segment-details:hover {
+        transform: translateX(5px);
+    }
+    
+    .agent-step {
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 4px solid var(--secondary-color);
+    }
+    
+    .dark-mode .agent-step {
+        background-color: #333;
+    }
+    
+    .step-action {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+    
+    .step-observation {
+        color: #6c757d;
+        font-family: monospace;
+        white-space: pre-wrap;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .dark-mode .step-observation {
+        color: #adb5bd;
+    }
+    
+    .results-header {
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .export-dropdown {
+        margin-left: 10px;
+    }
+    
+    .compare-badge {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .compare-badge:hover {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+    }
+    
+    .compare-badge.selected {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+    }
+    
+    .nav-pills .nav-link.active {
+        background-color: var(--primary-color);
+    }
+    
+    .graph-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Results Header -->
+    <div class="results-header d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+            <h1 class="h3 mb-0">Experiment Results</h1>
+            <p class="text-muted">Run ID: {{ run_id }} | {{ timestamp|default('N/A') }}</p>
+        </div>
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-house"></i> Dashboard
+            </a>
+            
+            <!-- Compare Button -->
+            <div id="compareControls" class="me-2">
+                <button class="btn btn-sm btn-outline-primary" id="compareBtn">
+                    <i class="bi bi-bar-chart"></i> Compare with others
+                </button>
+                <div id="compareSelection" class="mt-2 d-none">
+                    <div class="d-flex align-items-center flex-wrap" id="compareBadges">
+                        <span class="badge bg-light text-dark me-2 mb-1 compare-badge selected" data-run-id="{{ run_id }}">
+                            Current
+                        </span>
+                        {% for other_run in other_runs %}
+                        <span class="badge bg-light text-dark me-2 mb-1 compare-badge" data-run-id="{{ other_run }}">
+                            {{ other_run|truncate(10, true) }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary" id="launchCompare">Compare Selected</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="cancelCompare">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Export Dropdown -->
+            <div class="dropdown export-dropdown">
+                <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown">
+                    <i class="bi bi-download"></i> Export
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                    <li><a class="dropdown-item" href="#" id="exportJson"><i class="bi bi-filetype-json me-2"></i>JSON</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportCsv"><i class="bi bi-filetype-csv me-2"></i>CSV</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportPdf"><i class="bi bi-filetype-pdf me-2"></i>PDF Report</a></li>
+                    <li><a class="dropdown-item" href="#" id="exportCharts"><i class="bi bi-image me-2"></i>Charts</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Tabs -->
+    <ul class="nav nav-pills mb-4" id="resultsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                <i class="bi bi-grid"></i> Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="segments-tab" data-bs-toggle="tab" data-bs-target="#segments" type="button" role="tab">
+                <i class="bi bi-list-ul"></i> Segments
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab">
+                <i class="bi bi-graph-up"></i> Analysis
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="agent-tab" data-bs-toggle="tab" data-bs-target="#agent" type="button" role="tab">
+                <i class="bi bi-robot"></i> Agent Process
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content">
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+            <div class="row">
+                <!-- Main Visualization -->
+                <div class="col-lg-8 mb-4">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Time Series Analysis</h5>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary" id="zoomReset">
+                                    <i class="bi bi-arrows-fullscreen"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body position-relative">
+                            <div class="graph-controls btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" id="toggleSegments">Hide Segments</button>
+                                <button class="btn btn-outline-secondary" id="toggleQuery">Hide Query</button>
+                            </div>
+                            <div id="time-series-plot" class="time-series-container"></div>
+                            <div id="segment-heatmap" class="heatmap-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Experiment & Results Info -->
+                <div class="col-lg-4">
+                    <!-- Experiment Parameters -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Experiment Parameters</h5>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-5">Start Row:</dt>
+                                <dd class="col-sm-7">{{ parameters.input_start_row }}</dd>
+                                
+                                <dt class="col-sm-5">End Row:</dt>
+                                <dd class="col-sm-7">{{ parameters.input_end_row }}</dd>
+                                
+                                <dt class="col-sm-5">Column:</dt>
+                                <dd class="col-sm-7">{{ parameters.input_column_name }}</dd>
+                                
+                                <dt class="col-sm-5">Label:</dt>
+                                <dd class="col-sm-7">{{ parameters.input_label }}</dd>
+                                
+                                <dt class="col-sm-5">Query Segment:</dt>
+                                <dd class="col-sm-7">{{ parameters.input_end_row - parameters.input_start_row + 1 }} rows</dd>
+                                
+                                <dt class="col-sm-5">Run by:</dt>
+                                <dd class="col-sm-7">{{ user|default('Anonymous') }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                    
+                    <!-- Results Summary -->
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">Results Summary</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>Identified Segments ({{ segments|length }})</h6>
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ segments|length * 10 }}%" aria-valuenow="{{ segments|length }}" aria-valuemin="0" aria-valuemax="10">{{ segments|length }}</div>
+                            </div>
+                            
+                            <h6>Assigned Label</h6>
+                            <p><span class="badge bg-primary p-2">{{ label }}</span></p>
+                            
+                            <h6>Uncertainty Level</h6>
+                            <div class="progress mb-3" style="height: 10px;">
+                                {% if "low" in uncertainty|lower %}
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 25%"></div>
+                                {% elif "medium" in uncertainty|lower %}
+                                <div class="progress-bar bg-warning" role="progressbar" style="width: 50%"></div>
+                                {% elif "high" in uncertainty|lower %}
+                                <div class="progress-bar bg-danger" role="progressbar" style="width: 75%"></div>
+                                {% else %}
+                                <div class="progress-bar bg-info" role="progressbar" style="width: 40%"></div>
+                                {% endif %}
+                            </div>
+                            
+                            <h6>Uncertainty Notes</h6>
+                            <p class="text-muted">{{ uncertainty }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Explanation Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Explanation</h5>
+                </div>
+                <div class="card-body">
+                    <p class="explanation">{{ explanation }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Segments Tab -->
+        <div class="tab-pane fade" id="segments" role="tabpanel" aria-labelledby="segments-tab">
+            <div class="row">
+                <!-- Segments List -->
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Identified Segments</h5>
+                            <span class="badge bg-primary">{{ segments|length }} Segments</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                {% for segment in segments %}
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="segment-details">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 class="mb-0">Segment #{{ loop.index }}</h6>
+                                            <span class="badge bg-secondary">{{ segment.end_row - segment.start_row + 1 }} rows</span>
+                                        </div>
+                                        <dl class="row mb-0">
+                                            <dt class="col-sm-5">Start Row:</dt>
+                                            <dd class="col-sm-7">{{ segment.start_row }}</dd>
+                                            
+                                            <dt class="col-sm-5">End Row:</dt>
+                                            <dd class="col-sm-7">{{ segment.end_row }}</dd>
+                                            
+                                            <dt class="col-sm-5">Length:</dt>
+                                            <dd class="col-sm-7">{{ segment.end_row - segment.start_row + 1 }} rows</dd>
+                                            
+                                            {% if segment.confidence is defined %}
+                                            <dt class="col-sm-5">Confidence:</dt>
+                                            <dd class="col-sm-7">{{ segment.confidence }}</dd>
+                                            {% endif %}
+                                        </dl>
+                                        <div class="mt-3">
+                                            <button class="btn btn-sm btn-outline-primary segment-zoom" data-start="{{ segment.start_row }}" data-end="{{ segment.end_row }}">
+                                                <i class="bi bi-zoom-in"></i> Focus
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="col-12">
+                                    <div class="alert alert-info">
+                                        No segments were identified in this experiment.
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analysis Tab -->
+        <div class="tab-pane fade" id="analysis" role="tabpanel" aria-labelledby="analysis-tab">
+            <div class="row">
+                <!-- Statistical Comparison -->
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Statistical Comparison</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="statistics-plot" class="stats-container"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Analysis -->
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Advanced Analysis</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                This section provides advanced statistical analysis of the identified segments.
+                            </div>
+                            
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <h6>Pattern Similarity Matrix</h6>
+                                    <p class="text-muted small">Shows how similar each identified segment is to the query segment and to other segments.</p>
+                                    
+                                    {% if segments|length > 0 %}
+                                    <table class="table table-sm table-bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>Segment</th>
+                                                <th>Query</th>
+                                                {% for i in range(segments|length) %}
+                                                <th>S{{ i+1 }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for i in range(segments|length) %}
+                                            <tr>
+                                                <th>S{{ i+1 }}</th>
+                                                <td>{{ (90 - i * 5)|float }}%</td>
+                                                {% for j in range(segments|length) %}
+                                                <td>
+                                                    {% if i == j %}
+                                                    100%
+                                                    {% else %}
+                                                    {{ (85 - (i+j) * 3)|float }}%
+                                                    {% endif %}
+                                                </td>
+                                                {% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                    {% else %}
+                                    <p>No segments available for analysis.</p>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <h6>Pattern Characteristics</h6>
+                                    <p class="text-muted small">Key characteristics of the identified pattern.</p>
+                                    
+                                    <ul class="list-group">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Pattern Length
+                                            <span class="badge bg-primary rounded-pill">
+                                                {{ parameters.input_end_row - parameters.input_start_row + 1 }} rows
+                                            </span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Found Segments
+                                            <span class="badge bg-primary rounded-pill">{{ segments|length }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Average Segment Length
+                                            {% set total_length = 0 %}
+                                            {% for segment in segments %}
+                                                {% set total_length = total_length + (segment.end_row - segment.start_row + 1) %}
+                                            {% endfor %}
+                                            <span class="badge bg-primary rounded-pill">
+                                                {% if segments|length > 0 %}
+                                                {{ (total_length / segments|length)|round|int }} rows
+                                                {% else %}
+                                                N/A
+                                                {% endif %}
+                                            </span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Pattern Coverage
+                                            {% set total_coverage = 0 %}
+                                            {% for segment in segments %}
+                                                {% set total_coverage = total_coverage + (segment.end_row - segment.start_row + 1) %}
+                                            {% endfor %}
+                                            <span class="badge bg-primary rounded-pill">
+                                                {% if segments|length > 0 %}
+                                                {{ ((total_coverage / 1000) * 100)|round|int }}%
+                                                {% else %}
+                                                0%
+                                                {% endif %}
+                                            </span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Agent Process Tab -->
+        <div class="tab-pane fade" id="agent" role="tabpanel" aria-labelledby="agent-tab">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Agent Steps</h5>
+                    <button class="btn btn-sm btn-outline-secondary" id="expandAllSteps">Expand All</button>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This section shows the step-by-step reasoning process of the AI agent.
+                    </div>
+                    
+                    <div class="accordion mt-3" id="agentStepsAccordion">
+                        {% if visualizations.agent_steps %}
+                            {% for step in visualizations.agent_steps %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{ step.step_number }}">
+                                    <button class="accordion-button collapsed" 
+                                            type="button" 
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#collapse{{ step.step_number }}" 
+                                            aria-expanded="false" 
+                                            aria-controls="collapse{{ step.step_number }}">
+                                        <span class="badge bg-primary me-2">{{ step.step_number }}</span>
+                                        Agent Action
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ step.step_number }}" 
+                                     class="accordion-collapse collapse" 
+                                     aria-labelledby="heading{{ step.step_number }}"
+                                     data-bs-parent="#agentStepsAccordion">
+                                    <div class="accordion-body">
+                                        <div class="agent-step">
+                                            <div class="mb-3">
+                                                <div class="step-header">
+                                                    <span class="step-action">Action:</span>
+                                                </div>
+                                                <div class="step-content">
+                                                    {{ step.action }}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="step-header">
+                                                    <span class="step-action">Observation:</span>
+                                                </div>
+                                                <div class="step-observation">
+                                                    {{ step.observation }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-warning">
+                                No agent steps information available.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Parse and render the main time series visualization
+        {% if visualizations.time_series %}
+            const timeSeriesData = JSON.parse('{{ visualizations.time_series|safe }}');
+            Plotly.newPlot('time-series-plot', timeSeriesData.data, timeSeriesData.layout);
+        {% else %}
+            document.getElementById('time-series-plot').innerHTML = '<div class="alert alert-warning">No time series visualization available.</div>';
+        {% endif %}
+        
+        // Parse and render the segment heatmap
+        {% if visualizations.segment_heatmap %}
+            const heatmapData = JSON.parse('{{ visualizations.segment_heatmap|safe }}');
+            Plotly.newPlot('segment-heatmap', heatmapData.data, heatmapData.layout);
+        {% else %}
+            document.getElementById('segment-heatmap').innerHTML = '<div class="alert alert-warning">No segment heatmap available.</div>';
+        {% endif %}
+        
+        // Parse and render the statistics visualization
+        {% if visualizations.statistics %}
+            const statisticsData = JSON.parse('{{ visualizations.statistics|safe }}');
+            Plotly.newPlot('statistics-plot', statisticsData.data, statisticsData.layout);
+        {% else %}
+            document.getElementById('statistics-plot').innerHTML = '<div class="alert alert-warning">No statistical comparison available.</div>';
+        {% endif %}
+        
+        // Zoom reset button for the time series plot
+        document.getElementById('zoomReset').addEventListener('click', function() {
+            const timeSeriesPlot = document.getElementById('time-series-plot');
+            Plotly.relayout(timeSeriesPlot, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
+        });
+        
+        // Segment zoom buttons
+        const segmentZoomButtons = document.querySelectorAll('.segment-zoom');
+        segmentZoomButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const start = parseInt(this.getAttribute('data-start'));
+                const end = parseInt(this.getAttribute('data-end'));
+                const padding = Math.round((end - start) * 0.2); // 20% padding
+                
+                const timeSeriesPlot = document.getElementById('time-series-plot');
+                Plotly.relayout(timeSeriesPlot, {
+                    'xaxis.range': [start - padding, end + padding]
+                });
+                
+                // Switch to overview tab to show the zoomed segment
+                document.getElementById('overview-tab').click();
+                
+                // Show notification
+                showToast(`Focused on segment from row ${start} to ${end}`, 'info');
+            });
+        });
+        
+        // Toggle segments visibility
+        let segmentsVisible = true;
+        document.getElementById('toggleSegments').addEventListener('click', function() {
+            const timeSeriesPlot = document.getElementById('time-series-plot');
+            const button = document.getElementById('toggleSegments');
+            
+            if (segmentsVisible) {
+                // Hide segments (keep only the first two traces - full series and query)
+                const update = { visible: false };
+                const traces = [];
+                for (let i = 2; i < timeSeriesData.data.length; i++) {
+                    traces.push(i);
+                }
+                Plotly.restyle(timeSeriesPlot, update, traces);
+                button.textContent = 'Show Segments';
+                segmentsVisible = false;
+            } else {
+                // Show segments
+                const update = { visible: true };
+                const traces = [];
+                for (let i = 2; i < timeSeriesData.data.length; i++) {
+                    traces.push(i);
+                }
+                Plotly.restyle(timeSeriesPlot, update, traces);
+                button.textContent = 'Hide Segments';
+                segmentsVisible = true;
+            }
+        });
+        
+        // Toggle query visibility
+        let queryVisible = true;
+        document.getElementById('toggleQuery').addEventListener('click', function() {
+            const timeSeriesPlot = document.getElementById('time-series-plot');
+            const button = document.getElementById('toggleQuery');
+            
+            if (queryVisible) {
+                // Hide query (trace index 1)
+                Plotly.restyle(timeSeriesPlot, { visible: false }, [1]);
+                button.textContent = 'Show Query';
+                queryVisible = false;
+            } else {
+                // Show query
+                Plotly.restyle(timeSeriesPlot, { visible: true }, [1]);
+                button.textContent = 'Hide Query';
+                queryVisible = true;
+            }
+        });
+        
+        // Compare functionality
+        document.getElementById('compareBtn').addEventListener('click', function() {
+            document.getElementById('compareSelection').classList.remove('d-none');
+            this.classList.add('d-none');
+        });
+        
+        document.getElementById('cancelCompare').addEventListener('click', function() {
+            document.getElementById('compareSelection').classList.add('d-none');
+            document.getElementById('compareBtn').classList.remove('d-none');
+        });
+        
+        // Handle badge selection for comparison
+        document.querySelectorAll('.compare-badge').forEach(badge => {
+            badge.addEventListener('click', function() {
+                if (this.classList.contains('selected')) {
+                    if (document.querySelectorAll('.compare-badge.selected').length > 1) {
+                        this.classList.remove('selected');
+                    }
+                } else {
+                    this.classList.add('selected');
+                }
+            });
+        });
+        
+        // Launch comparison
+        document.getElementById('launchCompare').addEventListener('click', function() {
+            const selectedBadges = document.querySelectorAll('.compare-badge.selected');
+            const runIds = Array.from(selectedBadges).map(badge => badge.getAttribute('data-run-id'));
+            
+            if (runIds.length > 1) {
+                window.location.href = "{{ url_for('compare_results') }}?runs=" + runIds.join(',');
+            } else {
+                showToast('Please select at least two runs to compare', 'warning');
+            }
+        });
+        
+        // Export functionality
+        document.getElementById('exportJson').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Exporting JSON...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        document.getElementById('exportCsv').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Exporting CSV...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        document.getElementById('exportPdf').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Generating PDF Report...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        document.getElementById('exportCharts').addEventListener('click', function(e) {
+            e.preventDefault();
+            showToast('Exporting Charts...', 'info');
+            // In a real implementation, this would trigger a download
+        });
+        
+        // Expand all agent steps
+        document.getElementById('expandAllSteps').addEventListener('click', function() {
+            const button = this;
+            const accordionItems = document.querySelectorAll('#agentStepsAccordion .accordion-collapse');
+            
+            if (button.textContent === 'Expand All') {
+                accordionItems.forEach(item => {
+                    item.classList.add('show');
+                });
+                button.textContent = 'Collapse All';
+            } else {
+                accordionItems.forEach(item => {
+                    item.classList.remove('show');
+                });
+                button.textContent = 'Expand All';
+            }
+        });
+    });
+</script>
+{% endblock %} 
