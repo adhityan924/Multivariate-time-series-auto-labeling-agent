@@ -15,7 +15,7 @@ sys.path.insert(0, project_root)
 # Import project modules
 import config # Still relative to this script's directory
 from src.tools import load_data, setup_vector_store # Now imports from top-level src
-from langchain_experiment1.src.agent_setup import agent_executor # Imports from the specific experiment's src
+from src.agent_setup import agent_executor # Direct import from local src directory
 from langchain.callbacks.tracers.logging import LoggingCallbackHandler # Ensure import is present
 
 # --- Logging Setup ---

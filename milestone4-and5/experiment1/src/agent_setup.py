@@ -32,10 +32,9 @@ agent_executor = None
 # --- 5.1. Instantiate LLM ---
 try:
     llm = ChatOpenAI(
-        model="o3-mini-2025-01-31", # Changed model
-        openai_api_key=API_KEY
-        # temperature=0.1 # Removed: Unsupported by o3-mini
-        # No convert_system_message needed for OpenAI
+        model="gpt-3.5-turbo", # Changed from o3-mini-2025-01-31 to gpt-3.5-turbo
+        openai_api_key=API_KEY,
+        temperature=0.2 # Added temperature for more deterministic outputs
     )
     print("LLM (ChatOpenAI) instantiated successfully.")
 except Exception as e:
