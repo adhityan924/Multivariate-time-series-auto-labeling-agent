@@ -1,7 +1,0 @@
-2025-04-21 00:32:33,641 - INFO - Logging setup complete. Log file: logs/experiment_2_run_20250421_003233.log
-2025-04-21 00:32:33,641 - INFO - Starting Experiment 2 Run (Plan-and-Solve Agent)...
-2025-04-21 00:32:33,641 - INFO - Attempting to load dataset from: data/your_timeseries.csv
-2025-04-21 00:32:33,644 - INFO - Dataset loaded successfully.
-2025-04-21 00:32:33,644 - INFO - Initializing vector store...
-2025-04-21 00:32:33,660 - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
-2025-04-21 00:32:34,153 - ERROR - Failed to initialize vector store. Exiting.

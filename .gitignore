@@ -45,8 +45,8 @@ instance/
 .ipynb_checkpoints
 
 # Data files
-final/data/uploads/
-final/results/
+time-series-web-app/data/uploads/
+time-series-web-app/results/
 *.db
 *.sqlite3
 
