@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Processing - Time Series Analyzer Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Batch Processing</h1>
+            <p class="text-muted">Run multiple experiments with different parameters</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Configure Batch Job</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('batch_processing') }}" method="post">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Row Segments</label>
+                            <p class="text-muted small">Enter pairs of start and end rows. Separate multiple pairs with commas.</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="start_rows" class="form-label">Start Rows</label>
+                                    <input type="text" class="form-control" id="start_rows" name="start_rows" 
+                                           placeholder="100, 200, 300" required>
+                                    <div class="form-text">Example: 100, 200, 300</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="end_rows" class="form-label">End Rows</label>
+                                    <input type="text" class="form-control" id="end_rows" name="end_rows" 
+                                           placeholder="150, 250, 350" required>
+                                    <div class="form-text">Example: 150, 250, 350</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Columns</label>
+                            <p class="text-muted small">Select columns to analyze. Multiple selections allowed.</p>
+                            
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <select class="form-select" id="column_names" name="column_names" multiple required>
+                                        {% for column in columns %}
+                                            <option value="{{ column }}">{{ column }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">Hold Ctrl (Windows) or Cmd (Mac) to select multiple columns</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Labels</label>
+                            <p class="text-muted small">Enter pattern labels. Add each label on a new line.</p>
+                            
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <textarea class="form-control" id="labels" name="labels" rows="3" 
+                                              placeholder="Pattern_A&#10;Pattern_B&#10;Pattern_C" required></textarea>
+                                    <div class="form-text">Each label will be used in a separate experiment</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <div class="d-flex">
+                                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                                <div>
+                                    <strong>About Batch Processing:</strong>
+                                    <p class="mb-0">The system will run experiments for all combinations of the inputs above. 
+                                       For example, if you specify 3 segment pairs, 2 columns, and 2 labels, the system will run 12 experiments (3 × 2 × 2).</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" id="estimateBtn" class="btn btn-outline-secondary me-md-2">
+                                <i class="bi bi-calculator"></i> Estimate Jobs
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-play-fill"></i> Start Batch Processing
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Batch Processing Tips</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item px-0">
+                            <i class="bi bi-lightbulb text-warning me-2"></i>
+                            Start with a small number of combinations to test
+                        </li>
+                        <li class="list-group-item px-0">
+                            <i class="bi bi-lightbulb text-warning me-2"></i>
+                            Each experiment runs independently in the background
+                        </li>
+                        <li class="list-group-item px-0">
+                            <i class="bi bi-lightbulb text-warning me-2"></i>
+                            You can safely navigate away after starting the batch
+                        </li>
+                        <li class="list-group-item px-0">
+                            <i class="bi bi-lightbulb text-warning me-2"></i>
+                            Batch results can be exported for further analysis
+                        </li>
+                        <li class="list-group-item px-0">
+                            <i class="bi bi-lightbulb text-warning me-2"></i>
+                            Check your dataset size – large batches may take time to process
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Job Estimate</h5>
+                </div>
+                <div class="card-body">
+                    <div id="estimateResults">
+                        <p class="text-center text-muted mb-0">
+                            <i class="bi bi-arrow-left-circle"></i>
+                            Configure your batch and click "Estimate Jobs"
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Batch Processing</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to start a batch job with <span id="jobCount" class="fw-bold">0</span> experiments.</p>
+                <p>This may take some time depending on the size of your dataset and the number of experiments.</p>
+                <p>Do you want to continue?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="confirmBtn" class="btn btn-primary">Start Processing</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Estimate button functionality
+    document.getElementById('estimateBtn').addEventListener('click', function() {
+        // Get values from form
+        const startRowsText = document.getElementById('start_rows').value;
+        const endRowsText = document.getElementById('end_rows').value;
+        const columnSelect = document.getElementById('column_names');
+        const labelsText = document.getElementById('labels').value;
+        
+        // Parse values
+        const startRows = startRowsText ? startRowsText.split(',').map(x => x.trim()).filter(x => x) : [];
+        const endRows = endRowsText ? endRowsText.split(',').map(x => x.trim()).filter(x => x) : [];
+        const selectedColumns = Array.from(columnSelect.selectedOptions).map(opt => opt.value);
+        const labels = labelsText ? labelsText.split('\n').map(x => x.trim()).filter(x => x) : [];
+        
+        // Calculate total jobs
+        const segmentPairs = Math.min(startRows.length, endRows.length);
+        const totalJobs = segmentPairs * selectedColumns.length * labels.length;
+        
+        // Display result
+        const estimateResults = document.getElementById('estimateResults');
+        
+        if (totalJobs > 0) {
+            let html = `
+                <div class="text-center">
+                    <div class="display-4 fw-bold text-primary">${totalJobs}</div>
+                    <p class="mb-1">Total Experiments</p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <div class="text-center">
+                        <div class="h4 mb-0">${segmentPairs}</div>
+                        <small class="text-muted">Segments</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0">×</div>
+                        <small class="text-white">.</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0">${selectedColumns.length}</div>
+                        <small class="text-muted">Columns</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0">×</div>
+                        <small class="text-white">.</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="h4 mb-0">${labels.length}</div>
+                        <small class="text-muted">Labels</small>
+                    </div>
+                </div>`;
+                
+            // Add warning if too many jobs
+            if (totalJobs > 50) {
+                html += `
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Large number of jobs may take significant time to process
+                    </div>`;
+            }
+            
+            estimateResults.innerHTML = html;
+        } else {
+            estimateResults.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Please fill in all required fields
+                </div>`;
+        }
+    });
+    
+    // Form submission with confirmation
+    document.querySelector('form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Calculate job count similar to estimate function
+        const startRows = document.getElementById('start_rows').value.split(',').map(x => x.trim()).filter(x => x);
+        const endRows = document.getElementById('end_rows').value.split(',').map(x => x.trim()).filter(x => x);
+        const selectedColumns = Array.from(document.getElementById('column_names').selectedOptions).map(opt => opt.value);
+        const labels = document.getElementById('labels').value.split('\n').map(x => x.trim()).filter(x => x);
+        
+        const segmentPairs = Math.min(startRows.length, endRows.length);
+        const totalJobs = segmentPairs * selectedColumns.length * labels.length;
+        
+        // Update the confirmation modal
+        document.getElementById('jobCount').textContent = totalJobs;
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+        modal.show();
+        
+        // Handle confirmation button
+        document.getElementById('confirmBtn').onclick = () => {
+            modal.hide();
+            this.submit();
+        };
+    });
+</script>
+{% endblock %} 

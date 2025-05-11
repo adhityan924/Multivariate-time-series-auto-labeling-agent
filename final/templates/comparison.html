@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block title %}Results Comparison - Time Series Analyzer Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        height: 600px;
+        margin-bottom: 2rem;
+    }
+    
+    .comparison-card {
+        border-left: 4px solid var(--primary-color);
+        transition: transform 0.2s;
+    }
+    
+    .comparison-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .comparison-table th {
+        min-width: 150px;
+    }
+    
+    .parameter-same {
+        background-color: rgba(6, 214, 160, 0.1);
+    }
+    
+    .parameter-different {
+        background-color: rgba(239, 71, 111, 0.1);
+    }
+    
+    .dark-mode .parameter-same {
+        background-color: rgba(6, 214, 160, 0.2);
+    }
+    
+    .dark-mode .parameter-different {
+        background-color: rgba(239, 71, 111, 0.2);
+    }
+    
+    .stat-display {
+        text-align: center;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background-color: var(--bs-light);
+    }
+    
+    .dark-mode .stat-display {
+        background-color: var(--bs-dark);
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: var(--primary-color);
+    }
+    
+    .dark-mode .stat-value {
+        color: var(--primary-color);
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        color: var(--bs-gray-600);
+    }
+    
+    .dark-mode .stat-label {
+        color: var(--bs-gray-400);
+    }
+    
+    .color-legend {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .color-box {
+        width: 1rem;
+        height: 1rem;
+        margin-right: 0.5rem;
+        border-radius: 3px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Comparison Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Results Comparison</h1>
+            <p class="text-muted">Comparing {{ results|length }} experiments</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-house-door"></i> Dashboard
+            </a>
+            
+            <div class="dropdown d-inline-block">
+                <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-download"></i> Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-filetype-json me-2"></i> Export as JSON</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-filetype-csv me-2"></i> Export as CSV</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-filetype-pdf me-2"></i> Export as PDF</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-image me-2"></i> Export Charts</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Tabs -->
+    <ul class="nav nav-tabs mb-4" id="comparisonTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                <i class="bi bi-grid-1x2"></i> Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="visualization-tab" data-bs-toggle="tab" data-bs-target="#visualization" type="button" role="tab">
+                <i class="bi bi-graph-up"></i> Visualizations
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">
+                <i class="bi bi-list-check"></i> Details
+            </button>
+        </li>
+    </ul>
+    
+    <!-- Tab Content -->
+    <div class="tab-content" id="comparisonTabsContent">
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+            <!-- Key Metrics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-3">Total Segments</h6>
+                            {% set total_segments = 0 %}
+                            {% for result in results %}
+                                {% set total_segments = total_segments + result.segments|length %}
+                            {% endfor %}
+                            <div class="stat-display">
+                                <div class="stat-value">{{ total_segments }}</div>
+                                <div class="stat-label">Across all experiments</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-3">Average Segments</h6>
+                            <div class="stat-display">
+                                <div class="stat-value">
+                                    {{ (total_segments / results|length)|round(1) }}
+                                </div>
+                                <div class="stat-label">Per experiment</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-3">Avg. Segment Length</h6>
+                            {% set total_length = 0 %}
+                            {% set segment_count = 0 %}
+                            {% for result in results %}
+                                {% for segment in result.segments %}
+                                    {% set segment_count = segment_count + 1 %}
+                                    {% set total_length = total_length + (segment.end_row - segment.start_row + 1) %}
+                                {% endfor %}
+                            {% endfor %}
+                            <div class="stat-display">
+                                <div class="stat-value">
+                                    {% if segment_count > 0 %}
+                                        {{ (total_length / segment_count)|round|int }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                </div>
+                                <div class="stat-label">Rows</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted mb-3">Unique Labels</h6>
+                            {% set labels = [] %}
+                            {% for result in results %}
+                                {% if result.label not in labels %}
+                                    {% set labels = labels + [result.label] %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="stat-display">
+                                <div class="stat-value">{{ labels|length }}</div>
+                                <div class="stat-label">Different labels</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main Comparison Chart -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Comparison Chart</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="overlapChart" class="chart-container"></div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex flex-wrap">
+                        {% for i in range(results|length) %}
+                        <div class="color-legend me-3">
+                            <div class="color-box" style="background-color: {{ ['#ff6384', '#36a2eb', '#4bc0c0', '#9966ff', '#ffce56'][i % 5] }};"></div>
+                            <span>Experiment {{ i+1 }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Parameter Comparison Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Parameter Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    {% for i in range(results|length) %}
+                                    <th>Experiment {{ i+1 }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th>Run ID</th>
+                                    {% for result in results %}
+                                    <td>{{ result.run_id }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Date</th>
+                                    {% for result in results %}
+                                    <td>{{ result.timestamp|replace('T', ' ')|truncate(19, true, '') }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Column</th>
+                                    {% set columns = [] %}
+                                    {% for result in results %}
+                                        {% set columns = columns + [result.parameters.input_column_name] %}
+                                    {% endfor %}
+                                    {% for result in results %}
+                                    <td class="{% if columns|unique|length == 1 %}parameter-same{% else %}parameter-different{% endif %}">
+                                        {{ result.parameters.input_column_name }}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Query Start</th>
+                                    {% set starts = [] %}
+                                    {% for result in results %}
+                                        {% set starts = starts + [result.parameters.input_start_row] %}
+                                    {% endfor %}
+                                    {% for result in results %}
+                                    <td class="{% if starts|unique|length == 1 %}parameter-same{% else %}parameter-different{% endif %}">
+                                        {{ result.parameters.input_start_row }}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Query End</th>
+                                    {% set ends = [] %}
+                                    {% for result in results %}
+                                        {% set ends = ends + [result.parameters.input_end_row] %}
+                                    {% endfor %}
+                                    {% for result in results %}
+                                    <td class="{% if ends|unique|length == 1 %}parameter-same{% else %}parameter-different{% endif %}">
+                                        {{ result.parameters.input_end_row }}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Query Length</th>
+                                    {% for result in results %}
+                                    <td>
+                                        {{ result.parameters.input_end_row - result.parameters.input_start_row + 1 }} rows
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Assigned Label</th>
+                                    {% set labels = [] %}
+                                    {% for result in results %}
+                                        {% set labels = labels + [result.label] %}
+                                    {% endfor %}
+                                    {% for result in results %}
+                                    <td class="{% if labels|unique|length == 1 %}parameter-same{% else %}parameter-different{% endif %}">
+                                        {{ result.label }}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <th>Segments Found</th>
+                                    {% for result in results %}
+                                    <td>
+                                        <span class="badge bg-primary">{{ result.segments|length }}</span>
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Visualizations Tab -->
+        <div class="tab-pane fade" id="visualization" role="tabpanel" aria-labelledby="visualization-tab">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Distribution</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="segmentDistributionChart" style="height: 400px;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Lengths</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="segmentLengthsChart" style="height: 400px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Timeline</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="segmentTimelineChart" style="height: 300px;"></div>
+                        </div>
+                        <div class="card-footer">
+                            <p class="text-muted mb-0 small">
+                                This visualization shows when segments occur across the dataset. Each row represents an experiment.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Details Tab -->
+        <div class="tab-pane fade" id="details" role="tabpanel" aria-labelledby="details-tab">
+            <div class="row">
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Segment Details Comparison</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Experiment</th>
+                                            <th>Segments</th>
+                                            <th>Average Length</th>
+                                            <th>Coverage</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for i, result in enumerate(results) %}
+                                        <tr>
+                                            <td>
+                                                <strong>Experiment {{ i+1 }}</strong><br>
+                                                <small class="text-muted">{{ result.run_id }}</small>
+                                            </td>
+                                            <td>
+                                                {% for segment in result.segments %}
+                                                <div class="mb-1">
+                                                    <span class="badge bg-primary">{{ loop.index }}</span>
+                                                    <small>Rows {{ segment.start_row }}-{{ segment.end_row }}</small>
+                                                </div>
+                                                {% else %}
+                                                <span class="text-muted">No segments</span>
+                                                {% endfor %}
+                                            </td>
+                                            <td>
+                                                {% set total_length = 0 %}
+                                                {% for segment in result.segments %}
+                                                    {% set total_length = total_length + (segment.end_row - segment.start_row + 1) %}
+                                                {% endfor %}
+                                                {% if result.segments|length > 0 %}
+                                                    {{ (total_length / result.segments|length)|round|int }} rows
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% set total_rows = result.parameters.input_end_row %}
+                                                {% set segment_rows = 0 %}
+                                                {% for segment in result.segments %}
+                                                    {% set segment_rows = segment_rows + (segment.end_row - segment.start_row + 1) %}
+                                                {% endfor %}
+                                                {% if total_rows > 0 %}
+                                                    {{ ((segment_rows / total_rows) * 100)|round|int }}%
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{{ url_for('view_results', run_id=result.run_id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i> View
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Explanations & Uncertainty</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="accordion" id="explanationsAccordion">
+                                {% for i, result in enumerate(results) %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingExp{{ i }}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExp{{ i }}" aria-expanded="false">
+                                            <div class="d-flex justify-content-between align-items-center w-100">
+                                                <span>Experiment {{ i+1 }}: {{ result.run_id }}</span>
+                                                <span class="badge bg-secondary ms-2">{{ result.label }}</span>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="collapseExp{{ i }}" class="accordion-collapse collapse" aria-labelledby="headingExp{{ i }}" data-bs-parent="#explanationsAccordion">
+                                        <div class="accordion-body">
+                                            <h6 class="mb-2">Explanation:</h6>
+                                            <p>{{ result.explanation }}</p>
+                                            
+                                            {% if result.uncertainty %}
+                                            <h6 class="mb-2 mt-4">Uncertainty Notes:</h6>
+                                            <div class="alert alert-warning">
+                                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                                {{ result.uncertainty }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Parse visualization data
+        {% if visualizations.overlap_chart %}
+        const overlapChartData = JSON.parse('{{ visualizations.overlap_chart|safe }}');
+        Plotly.newPlot('overlapChart', overlapChartData.data, overlapChartData.layout, {responsive: true});
+        {% endif %}
+        
+        {% if visualizations.segment_distribution %}
+        const distributionChartData = JSON.parse('{{ visualizations.segment_distribution|safe }}');
+        Plotly.newPlot('segmentDistributionChart', distributionChartData.data, distributionChartData.layout, {responsive: true});
+        {% endif %}
+        
+        {% if visualizations.segment_lengths %}
+        const lengthsChartData = JSON.parse('{{ visualizations.segment_lengths|safe }}');
+        Plotly.newPlot('segmentLengthsChart', lengthsChartData.data, lengthsChartData.layout, {responsive: true});
+        {% endif %}
+        
+        // Create segment timeline visualization
+        createSegmentTimeline();
+        
+        // Show welcome toast
+        showToast('Comparison loaded for {{ results|length }} experiments', 'info');
+    });
+    
+    function createSegmentTimeline() {
+        // This would normally use data from the server, but we'll create a simple placeholder visualization
+        const data = [{
+            y: Array({{ results|length }}).fill(0).map((_, i) => `Experiment ${i+1}`),
+            x: [0, 100, 200, 300, 400, 500],
+            type: 'scatter',
+            mode: 'markers',
+            marker: {
+                size: 12,
+                color: 'rgba(58, 134, 255, 0.8)'
+            },
+            name: 'Segments'
+        }];
+        
+        const layout = {
+            title: '',
+            yaxis: {
+                title: '',
+                automargin: true
+            },
+            xaxis: {
+                title: 'Row Index',
+                range: [0, 600]
+            },
+            margin: { l: 100, r: 50, t: 30, b: 50 },
+            showlegend: false,
+            height: 300
+        };
+        
+        Plotly.newPlot('segmentTimelineChart', data, layout, {responsive: true});
+    }
+</script>
+{% endblock %} 

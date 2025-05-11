@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}Dataset Details - Time Series Analyzer Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Dataset Details</h1>
+            <p class="text-muted">{{ dataset.name }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('upload_dataset') }}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Back to Datasets
+            </a>
+            <a href="{{ url_for('use_dataset', dataset_id=dataset.id) }}" class="btn btn-sm btn-primary">
+                <i class="bi bi-check-circle"></i> Use This Dataset
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-4 mb-4">
+            <!-- Dataset Overview -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Dataset Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Filename</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-file-earmark-text"></i></span>
+                            <input type="text" class="form-control" value="{{ dataset.name }}" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Upload Time</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-clock"></i></span>
+                            <input type="text" class="form-control" value="{{ dataset.upload_time|replace('T', ' ')|truncate(19, true, '') }}" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Uploaded By</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" class="form-control" value="{{ dataset.uploaded_by }}" readonly>
+                        </div>
+                    </div>
+                    
+                    {% if dataset.s3_path %}
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Cloud Storage</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-cloud"></i></span>
+                            <input type="text" class="form-control" value="{{ dataset.s3_path }}" readonly>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Dataset Statistics -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="stat-display border p-2 rounded text-center mb-3">
+                                <div class="stat-value text-primary">{{ stats.rows }}</div>
+                                <div class="text-muted small">Rows</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-display border p-2 rounded text-center mb-3">
+                                <div class="stat-value text-primary">{{ stats.columns }}</div>
+                                <div class="text-muted small">Columns</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="stat-display border p-2 rounded text-center">
+                                <div class="stat-value text-primary">{{ stats.numeric_columns }}</div>
+                                <div class="text-muted small">Numeric Columns</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-display border p-2 rounded text-center">
+                                <div class="stat-value text-warning">{{ stats.null_percent }}%</div>
+                                <div class="text-muted small">Missing Data</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mb-0 mt-3">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        Memory Usage: {{ stats.memory_usage }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-8">
+            <!-- Columns Information -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Column Information</h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" id="toggleNumericOnly">
+                            <i class="bi bi-filter"></i> Show Numeric Only
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="columnsTable">
+                            <thead>
+                                <tr>
+                                    <th>Column Name</th>
+                                    <th>Data Type</th>
+                                    <th>Missing Values</th>
+                                    <th>Sample Value</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for col in columns_preview %}
+                                <tr class="column-row {% if col.is_numeric %}numeric-column{% endif %}">
+                                    <td>
+                                        {{ col.name }}
+                                        {% if col.is_numeric %}
+                                        <span class="badge bg-primary ms-2">Numeric</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ col.type }}</td>
+                                    <td>{{ col.nulls }}</td>
+                                    <td><code>{{ col.sample }}</code></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary visualize-btn" data-column="{{ col.name }}">
+                                            <i class="bi bi-graph-up"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Data Preview -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Data Preview</h5>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    {{ data_preview|safe }}
+                </div>
+                <div class="card-footer">
+                    <small class="text-muted">Showing first 10 rows of the dataset</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Visualization Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Visualization</h5>
+                </div>
+                <div class="card-body">
+                    <div id="visualizationPlaceholder" class="text-center py-5">
+                        <i class="bi bi-bar-chart-line fs-1 text-muted"></i>
+                        <p class="mt-3">Select a numeric column to visualize</p>
+                        <p class="text-muted">Click the <i class="bi bi-graph-up"></i> button next to any numeric column</p>
+                    </div>
+                    
+                    <div id="visualizationContainer" style="height: 400px; display: none;">
+                        <!-- Plotly visualization will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Column Visualization Modal -->
+<div class="modal fade" id="visualizeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Column Visualization</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select Visualization Type</label>
+                    <select class="form-select" id="vizType">
+                        <option value="line">Line Chart</option>
+                        <option value="histogram">Histogram</option>
+                        <option value="box">Box Plot</option>
+                        <option value="scatter">Scatter Plot</option>
+                    </select>
+                </div>
+                
+                <div id="modalVizContainer" style="height: 500px;">
+                    <!-- Modal visualization will be rendered here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="exportVizBtn">
+                    <i class="bi bi-download"></i> Export Chart
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle numeric columns only
+        const toggleNumericOnlyBtn = document.getElementById('toggleNumericOnly');
+        let showNumericOnly = false;
+        
+        if (toggleNumericOnlyBtn) {
+            toggleNumericOnlyBtn.addEventListener('click', function() {
+                showNumericOnly = !showNumericOnly;
+                const nonNumericRows = document.querySelectorAll('tr.column-row:not(.numeric-column)');
+                
+                if (showNumericOnly) {
+                    this.innerHTML = '<i class="bi bi-filter"></i> Show All Columns';
+                    nonNumericRows.forEach(row => {
+                        row.style.display = 'none';
+                    });
+                } else {
+                    this.innerHTML = '<i class="bi bi-filter"></i> Show Numeric Only';
+                    nonNumericRows.forEach(row => {
+                        row.style.display = '';
+                    });
+                }
+            });
+        }
+        
+        // Visualize column data
+        const visualizeButtons = document.querySelectorAll('.visualize-btn');
+        const visualizationPlaceholder = document.getElementById('visualizationPlaceholder');
+        const visualizationContainer = document.getElementById('visualizationContainer');
+        const visualizeModal = new bootstrap.Modal(document.getElementById('visualizeModal'));
+        let currentColumn = '';
+        
+        visualizeButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const column = this.getAttribute('data-column');
+                currentColumn = column;
+                
+                // This would fetch data and render visualization in the real app
+                // For now, we'll just show a placeholder and the modal
+                visualizationPlaceholder.style.display = 'none';
+                visualizationContainer.style.display = 'block';
+                
+                // Create a simple line chart as an example
+                const xValues = Array.from({length: 100}, (_, i) => i);
+                const yValues = xValues.map(x => Math.sin(x/10) * 10 + Math.random() * 2);
+                
+                const data = [{
+                    x: xValues,
+                    y: yValues,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: column,
+                    line: {
+                        color: 'rgb(58, 134, 255)',
+                        width: 2
+                    }
+                }];
+                
+                const layout = {
+                    title: `${column} Time Series`,
+                    xaxis: {
+                        title: 'Row Index'
+                    },
+                    yaxis: {
+                        title: column
+                    },
+                    margin: {
+                        l: 50,
+                        r: 40,
+                        b: 40,
+                        t: 50,
+                        pad: 4
+                    },
+                    showlegend: true
+                };
+                
+                Plotly.newPlot(visualizationContainer, data, layout, {responsive: true});
+                
+                // Also show the modal with more visualization options
+                visualizeModal.show();
+                
+                // Create visualization in modal
+                createModalVisualization(column, 'line');
+                
+                // Setup viz type change handler
+                document.getElementById('vizType').addEventListener('change', function() {
+                    createModalVisualization(currentColumn, this.value);
+                });
+            });
+        });
+        
+        function createModalVisualization(column, type) {
+            // This would fetch data and render the requested visualization in the real app
+            // For demonstration, we'll create placeholders for each viz type
+            
+            const container = document.getElementById('modalVizContainer');
+            
+            // Generate dummy data
+            const xValues = Array.from({length: 100}, (_, i) => i);
+            const yValues = xValues.map(x => Math.sin(x/10) * 10 + Math.random() * 2);
+            
+            let data, layout;
+            
+            switch(type) {
+                case 'histogram':
+                    data = [{
+                        x: yValues,
+                        type: 'histogram',
+                        marker: {
+                            color: 'rgba(58, 134, 255, 0.7)',
+                            line: {
+                                color: 'rgba(58, 134, 255, 1)',
+                                width: 1
+                            }
+                        }
+                    }];
+                    layout = {
+                        title: `Histogram of ${column}`,
+                        xaxis: {title: column},
+                        yaxis: {title: 'Count'},
+                        bargap: 0.05
+                    };
+                    break;
+                    
+                case 'box':
+                    data = [{
+                        y: yValues,
+                        type: 'box',
+                        name: column,
+                        marker: {
+                            color: 'rgba(58, 134, 255, 0.7)'
+                        }
+                    }];
+                    layout = {
+                        title: `Box Plot of ${column}`
+                    };
+                    break;
+                    
+                case 'scatter':
+                    // For scatter, create a second dummy series
+                    const y2Values = xValues.map(x => Math.cos(x/8) * 8 + Math.random() * 2);
+                    
+                    data = [{
+                        x: yValues,
+                        y: y2Values,
+                        type: 'scatter',
+                        mode: 'markers',
+                        marker: {
+                            color: 'rgba(58, 134, 255, 0.7)',
+                            size: 8
+                        }
+                    }];
+                    layout = {
+                        title: `Scatter Plot (Two Numeric Columns)`,
+                        xaxis: {title: column},
+                        yaxis: {title: 'Another Column'}
+                    };
+                    break;
+                    
+                case 'line':
+                default:
+                    data = [{
+                        x: xValues,
+                        y: yValues,
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: {
+                            color: 'rgb(58, 134, 255)',
+                            width: 2
+                        }
+                    }];
+                    layout = {
+                        title: `${column} Time Series`,
+                        xaxis: {title: 'Row Index'},
+                        yaxis: {title: column}
+                    };
+                    break;
+            }
+            
+            layout.margin = {l: 50, r: 40, b: 40, t: 50, pad: 4};
+            Plotly.newPlot(container, data, layout, {responsive: true});
+        }
+        
+        // Export chart button
+        document.getElementById('exportVizBtn').addEventListener('click', function() {
+            // In a real app, this would trigger a download of the chart
+            alert('In a production app, this would download the current chart as PNG/SVG/PDF');
+        });
+    });
+</script>
+{% endblock %} 

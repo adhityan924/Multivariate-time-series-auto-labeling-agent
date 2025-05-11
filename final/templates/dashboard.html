@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Time Series Analyzer Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Welcome Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Dashboard</h1>
+            <p class="text-muted">Welcome back, {{ session.username }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </a>
+            <a href="#runExperimentModal" data-bs-toggle="modal" class="btn btn-sm btn-primary">
+                <i class="bi bi-play-fill"></i> New Experiment
+            </a>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card text-center" style="border-top: 4px solid var(--primary-color);">
+                <i class="bi bi-table fs-2 text-primary mb-2"></i>
+                <div class="stat-value">{{ stats.rows|default(0) }}</div>
+                <div class="stat-label">Total Rows</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card text-center" style="border-top: 4px solid var(--secondary-color);">
+                <i class="bi bi-columns-gap fs-2 text-secondary mb-2"></i>
+                <div class="stat-value">{{ stats.columns|default(0) }}</div>
+                <div class="stat-label">Columns</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card text-center" style="border-top: 4px solid var(--success-color);">
+                <i class="bi bi-clipboard-data fs-2 text-success mb-2"></i>
+                <div class="stat-value">{{ stats.numeric_columns|default(0) }}</div>
+                <div class="stat-label">Numeric Columns</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card text-center" style="border-top: 4px solid var(--danger-color);">
+                <i class="bi bi-exclamation-triangle fs-2 text-danger mb-2"></i>
+                <div class="stat-value">{{ stats.null_percent|default(0) }}%</div>
+                <div class="stat-label">Missing Data</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Current Dataset</h5>
+                    <a href="{{ url_for('upload_dataset') }}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-cloud-upload"></i> Manage Datasets
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-file-earmark-text fs-1 text-primary me-3"></i>
+                                <div>
+                                    <h5 class="mb-1">{{ stats.dataset_name|default('No dataset loaded') }}</h5>
+                                    <p class="text-muted mb-0">
+                                        {{ stats.rows|default(0) }} rows × {{ stats.columns|default(0) }} columns
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                            <a href="{{ url_for('upload_dataset') }}" class="btn btn-outline-primary me-2">
+                                <i class="bi bi-arrow-repeat"></i> Change Dataset
+                            </a>
+                            <a href="#runExperimentModal" data-bs-toggle="modal" class="btn btn-success">
+                                <i class="bi bi-play-fill"></i> Run Experiment
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Batch Status -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Batch Processing Status</h5>
+                    <a href="{{ url_for('batch_processing') }}" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="display-6 mb-1">{{ batch_status.active }}</div>
+                            <div class="text-muted small">Active Batches</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="display-6 mb-1">{{ batch_status.completed }}</div>
+                            <div class="text-muted small">Completed Batches</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="display-6 mb-1">{{ batch_status.failed }}</div>
+                            <div class="text-muted small">Failed Batches</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Experiments & Quick Actions -->
+    <div class="row">
+        <!-- Recent Experiments -->
+        <div class="col-md-8 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Experiments</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Date</th>
+                                    <th>Query Column</th>
+                                    <th>Segments</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for exp in recent_experiments %}
+                                <tr>
+                                    <td>{{ exp.id|truncate(10, true) }}</td>
+                                    <td>{{ exp.date }}</td>
+                                    <td>{{ exp.params.input_column_name|default('N/A') }}</td>
+                                    <td>
+                                        <span class="badge rounded-pill bg-primary">{{ exp.segments }}</span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('view_results', run_id=exp.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3">No recent experiments</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-end">
+                    <small class="text-muted">Showing latest 5 experiments</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="#runExperimentModal" data-bs-toggle="modal" class="btn btn-primary">
+                            <i class="bi bi-play-fill me-2"></i> Run Single Experiment
+                        </a>
+                        <a href="{{ url_for('batch_processing') }}" class="btn btn-secondary">
+                            <i class="bi bi-collection me-2"></i> Batch Processing
+                        </a>
+                        <a href="{{ url_for('upload_dataset') }}" class="btn btn-info">
+                            <i class="bi bi-cloud-upload me-2"></i> Upload New Dataset
+                        </a>
+                        <a href="{{ url_for('compare_results') }}?runs=" class="btn btn-outline-primary">
+                            <i class="bi bi-bar-chart me-2"></i> Compare Results
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dataset Information -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Info</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small mb-2">Available Time Series Columns:</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for column in columns %}
+                        <span class="badge bg-light text-dark p-2">{{ column }}</span>
+                        {% else %}
+                        <span class="text-muted">No columns available</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Run Experiment Modal -->
+<div class="modal fade" id="runExperimentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Run New Experiment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('run_experiment') }}" method="post">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_row" class="form-label">Start Row</label>
+                            <input type="number" class="form-control" id="start_row" name="start_row" value="100" required>
+                            <div class="form-text">Starting row index of the query segment</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_row" class="form-label">End Row</label>
+                            <input type="number" class="form-control" id="end_row" name="end_row" value="150" required>
+                            <div class="form-text">Ending row index of the query segment</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="column_name" class="form-label">Column Name</label>
+                        <select class="form-select" id="column_name" name="column_name" required>
+                            {% if columns %}
+                                {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="" disabled>No columns available</option>
+                            {% endif %}
+                        </select>
+                        <div class="form-text">Column to analyze for patterns</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="label" class="form-label">Label</label>
+                        <input type="text" class="form-control" id="label" name="label" value="Pattern_A" required>
+                        <div class="form-text">Label to assign to identified patterns</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Run Experiment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Show a welcome toast when the dashboard loads
+    document.addEventListener('DOMContentLoaded', function() {
+        showToast('Welcome to Time Series Analyzer Pro!', 'primary');
+    });
+</script>
+{% endblock %} 

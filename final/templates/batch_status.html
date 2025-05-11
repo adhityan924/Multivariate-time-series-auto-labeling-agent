@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Status - Time Series Analyzer Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Batch Status</h1>
+            <p class="text-muted">Monitoring batch job: {{ batch.id }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-house"></i> Dashboard
+            </a>
+            <a href="{{ url_for('batch_processing') }}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-plus-circle"></i> New Batch
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <h5 class="mb-0">Summary</h5>
+                    <span class="badge {% if batch.status == 'running' %}bg-primary{% elif batch.status == 'completed' %}bg-success{% elif batch.status == 'completed_with_errors' %}bg-warning{% else %}bg-danger{% endif %}">
+                        {{ batch.status|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-muted">Batch ID:</span>
+                        <span class="text-truncate" style="max-width: 200px;">{{ batch.id }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-muted">Created:</span>
+                        <span>{{ batch.created|replace('T', ' ')|truncate(19, true, '') }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-muted">User:</span>
+                        <span>{{ batch.user }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="text-muted">Total Tasks:</span>
+                        <span>{{ batch.total }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Completed Tasks:</span>
+                        <span>{{ batch.completed }} / {{ batch.total }}</span>
+                    </div>
+                    
+                    <div class="progress mt-4">
+                        <div class="progress-bar 
+                                {% if batch.status == 'completed' %}bg-success
+                                {% elif batch.status == 'completed_with_errors' %}bg-warning
+                                {% elif batch.status == 'failed' %}bg-danger
+                                {% else %}bg-primary{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ (batch.completed / batch.total * 100)|int }}%"
+                             aria-valuenow="{{ batch.completed }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="{{ batch.total }}">
+                            {{ ((batch.completed / batch.total) * 100)|int }}%
+                        </div>
+                    </div>
+                    
+                    {% if batch.status == 'completed' or batch.status == 'completed_with_errors' %}
+                    <div class="d-grid mt-4">
+                        <a href="{{ url_for('export_batch', batch_id=batch.id) }}" class="btn btn-success">
+                            <i class="bi bi-download me-2"></i> Export Results
+                        </a>
+                    </div>
+                    {% elif batch.status == 'running' %}
+                    <div class="alert alert-info mt-4 mb-0">
+                        <div class="d-flex align-items-center">
+                            <div class="loader me-3"></div>
+                            <div>Processing batch tasks. This page will update automatically.</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Task Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="h3 mb-1 text-primary">
+                                {{ batch.tasks|selectattr('status', 'equalto', 'pending')|list|length + batch.tasks|selectattr('status', 'equalto', 'running')|list|length }}
+                            </div>
+                            <div class="text-muted small">Pending</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="h3 mb-1 text-success">
+                                {{ batch.tasks|selectattr('status', 'equalto', 'completed')|list|length }}
+                            </div>
+                            <div class="text-muted small">Completed</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="h3 mb-1 text-danger">
+                                {{ batch.tasks|selectattr('status', 'equalto', 'failed')|list|length }}
+                            </div>
+                            <div class="text-muted small">Failed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-8 col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Task Details</h5>
+                    <div>
+                        <button id="expandAllBtn" class="btn btn-sm btn-outline-secondary me-2">Expand All</button>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown">
+                                Filter
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+                                <li><a class="dropdown-item filter-option" data-filter="all" href="#">All Tasks</a></li>
+                                <li><a class="dropdown-item filter-option" data-filter="pending" href="#">Pending/Running</a></li>
+                                <li><a class="dropdown-item filter-option" data-filter="completed" href="#">Completed</a></li>
+                                <li><a class="dropdown-item filter-option" data-filter="failed" href="#">Failed</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="taskAccordion">
+                        {% for task in batch.tasks %}
+                        <div class="accordion-item task-item" data-status="{{ task.status }}">
+                            <h2 class="accordion-header" id="heading{{ loop.index }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="false">
+                                    <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                        <span>
+                                            <span class="badge 
+                                                 {% if task.status == 'pending' %}bg-secondary
+                                                 {% elif task.status == 'running' %}bg-primary
+                                                 {% elif task.status == 'completed' %}bg-success
+                                                 {% else %}bg-danger{% endif %} me-2">
+                                                {{ task.status }}
+                                            </span>
+                                            Task #{{ loop.index }}
+                                        </span>
+                                        <span class="small text-muted d-none d-md-inline">
+                                            {{ task.column }} ({{ task.start_row }} - {{ task.end_row }})
+                                        </span>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#taskAccordion">
+                                <div class="accordion-body">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <dl class="row mb-0">
+                                                <dt class="col-sm-4">Start Row:</dt>
+                                                <dd class="col-sm-8">{{ task.start_row }}</dd>
+                                                
+                                                <dt class="col-sm-4">End Row:</dt>
+                                                <dd class="col-sm-8">{{ task.end_row }}</dd>
+                                                
+                                                <dt class="col-sm-4">Column:</dt>
+                                                <dd class="col-sm-8">{{ task.column }}</dd>
+                                            </dl>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <dl class="row mb-0">
+                                                <dt class="col-sm-4">Label:</dt>
+                                                <dd class="col-sm-8">{{ task.label }}</dd>
+                                                
+                                                <dt class="col-sm-4">Length:</dt>
+                                                <dd class="col-sm-8">{{ task.end_row - task.start_row + 1 }} rows</dd>
+                                                
+                                                <dt class="col-sm-4">Status:</dt>
+                                                <dd class="col-sm-8">
+                                                    <span class="badge 
+                                                         {% if task.status == 'pending' %}bg-secondary
+                                                         {% elif task.status == 'running' %}bg-primary
+                                                         {% elif task.status == 'completed' %}bg-success
+                                                         {% else %}bg-danger{% endif %}">
+                                                        {{ task.status }}
+                                                    </span>
+                                                </dd>
+                                            </dl>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if task.status == 'failed' and task.error %}
+                                    <div class="alert alert-danger mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <strong>Error:</strong> {{ task.error }}
+                                    </div>
+                                    {% elif task.status == 'completed' and batch.results and task.id in batch.results %}
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>Results:</strong> 
+                                            Found {{ batch.results[task.id].segments|length }} segments labeled as "{{ batch.results[task.id].label }}"
+                                        </div>
+                                        <a href="{{ url_for('view_results', run_id=batch.results[task.id].run_id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-graph-up me-1"></i> View Details
+                                        </a>
+                                    </div>
+                                    {% elif task.status == 'running' %}
+                                    <div class="d-flex align-items-center">
+                                        <div class="loader me-2"></div>
+                                        <span>Processing task...</span>
+                                    </div>
+                                    {% elif task.status == 'pending' %}
+                                    <div class="text-muted">
+                                        <i class="bi bi-hourglass me-2"></i>
+                                        Waiting to be processed
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto refresh when batch is running
+    {% if batch.status == 'running' %}
+    setTimeout(function() {
+        location.reload();
+    }, 10000); // Refresh every 10 seconds
+    {% endif %}
+    
+    // Expand/collapse all tasks
+    let allExpanded = false;
+    document.getElementById('expandAllBtn').addEventListener('click', function() {
+        const accordionButtons = document.querySelectorAll('.accordion-button');
+        const accordionItems = document.querySelectorAll('.accordion-collapse');
+        
+        if (allExpanded) {
+            // Collapse all
+            accordionItems.forEach(item => {
+                item.classList.remove('show');
+            });
+            accordionButtons.forEach(button => {
+                button.classList.add('collapsed');
+            });
+            this.textContent = 'Expand All';
+        } else {
+            // Expand all
+            accordionItems.forEach(item => {
+                item.classList.add('show');
+            });
+            accordionButtons.forEach(button => {
+                button.classList.remove('collapsed');
+            });
+            this.textContent = 'Collapse All';
+        }
+        
+        allExpanded = !allExpanded;
+    });
+    
+    // Task filtering
+    document.querySelectorAll('.filter-option').forEach(option => {
+        option.addEventListener('click', function(e) {
+            e.preventDefault();
+            const filter = this.getAttribute('data-filter');
+            const tasks = document.querySelectorAll('.task-item');
+            
+            tasks.forEach(task => {
+                const status = task.getAttribute('data-status');
+                
+                if (filter === 'all') {
+                    task.style.display = '';
+                } else if (filter === 'pending' && (status === 'pending' || status === 'running')) {
+                    task.style.display = '';
+                } else if (filter === status) {
+                    task.style.display = '';
+                } else {
+                    task.style.display = 'none';
+                }
+            });
+            
+            document.getElementById('filterDropdown').textContent = 'Filter: ' + 
+                filter.charAt(0).toUpperCase() + filter.slice(1);
+        });
+    });
+    
+    // Show a toast if the batch is running
+    {% if batch.status == 'running' %}
+    document.addEventListener('DOMContentLoaded', function() {
+        showToast('Batch processing is running. This page will update automatically.', 'info');
+    });
+    {% elif batch.status == 'completed' %}
+    document.addEventListener('DOMContentLoaded', function() {
+        showToast('Batch processing completed successfully!', 'success');
+    });
+    {% elif batch.status == 'completed_with_errors' %}
+    document.addEventListener('DOMContentLoaded', function() {
+        showToast('Batch processing completed with some errors.', 'warning');
+    });
+    {% endif %}
+</script>
+{% endblock %} 

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Time Series Analyzer Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">Error Occurred</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                {{ error }}
+            </div>
+            
+            {% if output %}
+            <div class="mt-4">
+                <h6>Response Output:</h6>
+                <div class="bg-light p-3 rounded" style="overflow-x: auto;">
+                    <pre><code>{{ output }}</code></pre>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                    <i class="bi bi-house-door me-2"></i> Back to Dashboard
+                </a>
+                
+                <button onclick="window.history.back()" class="btn btn-outline-secondary ms-2">
+                    <i class="bi bi-arrow-left me-2"></i> Go Back
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Troubleshooting Tips</h5>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Verify that your dataset is correctly formatted and accessible
+                </li>
+                <li class="list-group-item">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Check that the column name exists in your dataset
+                </li>
+                <li class="list-group-item">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Ensure that start and end row values are within the dataset range
+                </li>
+                <li class="list-group-item">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Check that the API key is valid and correctly configured
+                </li>
+                <li class="list-group-item">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Try with a smaller segment size if processing a large segment
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %} 
